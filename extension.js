@@ -2,10 +2,14 @@
 
 const vscode = require('vscode');
 const { findCommentRanges } = require('./src/commentScanner');
+const { analyzeCommentLines } = require('./src/commentLines');
 const { CommentFoldingProvider } = require('./src/foldingProvider');
 
 const CONFIG_SECTION = 'hideCommentsAndDisappear';
 const UPDATE_DEBOUNCE_MS = 150;
+// give the folding model time to pick up fresh provider results before we
+// programmatically fold comment-only lines
+const FOLD_SETTLE_MS = 250;
 
 /** @type {vscode.TextEditorDecorationType | null} */
 let hideDecorationType = null;
@@ -14,16 +18,24 @@ let statusBarItem = null;
 
 let enabled = true;
 let hideRegionComments = false;
+let collapseCommentLines = true;
 /** @type {Set<string>} */
 let languages = new Set();
 
 let foldingDisposables = [];
 const updateTimers = new Map();
+// document uri -> fold trigger lines we collapsed, so we expand exactly those
+const foldedLines = new Map();
+// bump to invalidate any in-flight fold refresh
+let foldGeneration = 0;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function loadConfig() {
   const cfg = vscode.workspace.getConfiguration(CONFIG_SECTION);
   enabled = cfg.get('enabled', true);
   hideRegionComments = cfg.get('hideRegionComments', false);
+  collapseCommentLines = cfg.get('collapseCommentLines', true);
   languages = new Set(cfg.get('languages', []));
 }
 
@@ -93,8 +105,76 @@ function scheduleUpdate(document) {
       for (const editor of vscode.window.visibleTextEditors) {
         if (editor.document === document) applyToEditor(editor);
       }
+      const active = vscode.window.activeTextEditor;
+      if (active && active.document === document) refreshFolding(active);
     }, UPDATE_DEBOUNCE_MS)
   );
+}
+
+function foldingShouldBeActive(document) {
+  return enabled && collapseCommentLines && isSupported(document);
+}
+
+/**
+ * Fold every run of comment-only lines so hiding comments does not leave
+ * empty lines behind. Fold commands act on the active editor only, and
+ * already-collapsed regions are left untouched, so this is idempotent.
+ * @param {vscode.TextEditor} editor
+ * @param {number} generation
+ */
+async function collapseCommentRuns(editor, generation) {
+  const document = editor.document;
+  const info = analyzeCommentLines(document.getText(), document.languageId);
+  const triggers = info.runs.map((run) => run.triggerLine);
+  const key = document.uri.toString();
+  if (triggers.length === 0) {
+    foldedLines.delete(key);
+    return;
+  }
+
+  await sleep(FOLD_SETTLE_MS);
+  if (generation !== foldGeneration) return;
+  if (editor !== vscode.window.activeTextEditor) return;
+  if (!foldingShouldBeActive(document)) return;
+
+  try {
+    await vscode.commands.executeCommand('editor.fold', { selectionLines: triggers });
+    foldedLines.set(key, triggers);
+  } catch {
+    // editor.folding disabled or command unavailable — decorations still hide the text
+  }
+}
+
+/**
+ * Expand exactly the comment runs we collapsed earlier.
+ * @param {vscode.TextEditor} editor
+ */
+async function expandCommentRuns(editor) {
+  const key = editor.document.uri.toString();
+  const triggers = foldedLines.get(key);
+  if (!triggers || triggers.length === 0) return;
+  foldedLines.delete(key);
+  if (editor !== vscode.window.activeTextEditor) return;
+
+  try {
+    await vscode.commands.executeCommand('editor.unfold', { selectionLines: triggers });
+  } catch {
+    // nothing to do
+  }
+}
+
+/**
+ * @param {vscode.TextEditor | undefined} editor
+ */
+function refreshFolding(editor) {
+  foldGeneration += 1;
+  const generation = foldGeneration;
+  if (!editor) return;
+  if (foldingShouldBeActive(editor.document)) {
+    collapseCommentRuns(editor, generation);
+  } else {
+    expandCommentRuns(editor);
+  }
 }
 
 function registerFoldingProviders() {
@@ -122,6 +202,7 @@ function setEnabled(value) {
   enabled = value;
   updateStatusBar();
   applyToAllEditors();
+  refreshFolding(vscode.window.activeTextEditor);
   // persist so the choice survives restarts; ignore failures (e.g. no workspace trust)
   vscode.workspace
     .getConfiguration(CONFIG_SECTION)
@@ -152,7 +233,10 @@ function activate(context) {
     vscode.commands.registerCommand('hideCommentsAndDisappear.enable', () => setEnabled(true)),
     vscode.commands.registerCommand('hideCommentsAndDisappear.disable', () => setEnabled(false)),
 
-    vscode.window.onDidChangeActiveTextEditor((editor) => applyToEditor(editor)),
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      applyToEditor(editor);
+      refreshFolding(editor);
+    }),
     vscode.window.onDidChangeVisibleTextEditors(() => applyToAllEditors()),
 
     vscode.workspace.onDidChangeTextDocument((event) => {
@@ -165,10 +249,12 @@ function activate(context) {
       registerFoldingProviders();
       updateStatusBar();
       applyToAllEditors();
+      refreshFolding(vscode.window.activeTextEditor);
     })
   );
 
   applyToAllEditors();
+  refreshFolding(vscode.window.activeTextEditor);
 }
 
 function deactivate() {

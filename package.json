@@ -2,7 +2,7 @@
   "name": "hide-comments-and-disappear",
   "displayName": "Hide Comments and Disappear",
   "description": "Hide //, ///, /* */, /*! */ comments from your code completely, while keeping #region/#endregion comment markers visible and collapsible. Toggle on/off from the status bar, command palette, or keybinding.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "enriquesouza",
   "license": "MIT",
   "author": {
@@ -90,12 +90,17 @@
           "type": "boolean",
           "default": false,
           "description": "When true, #region/#endregion comment markers are hidden too. By default they stay visible so you can collapse the region."
+        },
+        "hideCommentsAndDisappear.collapseCommentLines": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, runs of comment-only lines are automatically collapsed while comments are hidden, so no empty lines are left behind. They expand again when hiding is turned off."
         }
       }
     }
   },
   "scripts": {
-    "test": "node test/scanner.test.js",
+    "test": "node test/scanner.test.js && node test/commentLines.test.js",
     "icon": "node scripts/generate-icon.js"
   }
 }

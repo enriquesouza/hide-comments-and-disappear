@@ -12,6 +12,7 @@ Hide all code comments from the editor view with a single toggle — purely visu
   - `/*! */` preserved block comments
 - **Purely visual.** The document text is never modified. Search, line numbers, git diffs, and compilation are all unaffected. Comments only disappear from what you *see*.
 - **Region markers stay visible** as fold handles by default (see [Region folding](#region-folding)).
+- **No empty lines left behind.** Lines that contain only comments are automatically collapsed while hiding is on, and expanded again when you turn it off (see [Comment-only lines collapse](#comment-only-lines-collapse)).
 - **Folding support.** Regions collapse/expand, and multi-line block comments are individually collapsible (like VS Code's native "Fold All Block Comments").
 - **Quick toggle** via command palette, keyboard shortcut, or status bar.
 - **No telemetry.** Collects nothing, no network access.
@@ -67,6 +68,12 @@ Multi-line block comments are also individually collapsible, independent of regi
 
 To hide region marker comments as well, set `hideCommentsAndDisappear.hideRegionComments` to `true`.
 
+## Comment-only lines collapse
+
+Hiding comment text would normally leave blank lines where comments used to be. While hiding is on, the extension automatically folds every run of consecutive comment-only lines into the line above, so those lines disappear from view entirely (a fold indicator marks where they went). Turning hiding off expands them again. Inline comments (`code; // note`) keep their code line — only the comment text disappears.
+
+Set `hideCommentsAndDisappear.collapseCommentLines` to `false` to keep this behaviour manual (the fold ranges are still provided).
+
 ## Settings
 
 Configure via VS Code settings JSON:
@@ -76,6 +83,7 @@ Configure via VS Code settings JSON:
 | `hideCommentsAndDisappear.enabled` | boolean | `true` | Whether comment hiding is active. |
 | `hideCommentsAndDisappear.languages` | array of language ids | `["javascript", "javascriptreact", "typescript", "typescriptreact", "rust", "go"]` | Languages in which comments are hidden. Add more language ids such as `"c"`, `"cpp"`, or `"csharp"`. |
 | `hideCommentsAndDisappear.hideRegionComments` | boolean | `false` | When `true`, `#region` / `#endregion` marker comments are hidden too instead of kept as fold handles. |
+| `hideCommentsAndDisappear.collapseCommentLines` | boolean | `true` | When `true`, runs of comment-only lines are automatically collapsed while comments are hidden (no empty lines), and expanded again when hiding is off. |
 
 Example:
 
@@ -88,7 +96,8 @@ Example:
     "csharp",
     "cpp"
   ],
-  "hideCommentsAndDisappear.hideRegionComments": false
+  "hideCommentsAndDisappear.hideRegionComments": false,
+  "hideCommentsAndDisappear.collapseCommentLines": true
 }
 ```
 
@@ -110,7 +119,7 @@ Any language can be added by appending its language id to `hideCommentsAndDisapp
 ### From a `.vsix`
 
 ```bash
-code --install-extension hide-comments-and-disappear-0.0.1.vsix
+code --install-extension hide-comments-and-disappear-0.0.2.vsix
 ```
 
 Or in VS Code / VSCodium: open the Extensions view, open the `...` menu, and choose **Install from VSIX...**.
@@ -130,7 +139,7 @@ Then either:
 
 No build step — the extension is plain JavaScript.
 
-- **Tests:** `npm test` runs the scanner test suite (`node test/scanner.test.js`).
+- **Tests:** `npm test` runs the scanner and comment-line test suites (`test/scanner.test.js`, `test/commentLines.test.js`).
 - **Samples:** the `examples/` folder contains sample `.js`, `.ts`, `.rs`, and `.go` files to try the extension on.
 
 ## Known limitations

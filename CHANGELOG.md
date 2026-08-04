@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [0.0.2] - 2026-08-04
+
+### Added
+
+- Comment-only lines are now automatically collapsed while hiding is on, so hiding comments no longer leaves empty lines behind. Runs of consecutive comment-only lines fold into the line above them and expand again when hiding is turned off.
+- New setting `hideCommentsAndDisappear.collapseCommentLines` (default `true`) to opt out of the automatic collapse (fold ranges are still provided manually).
+- New test suite for the comment-line analysis (`test/commentLines.test.js`); `npm test` now runs both suites.
+
 ## [0.0.1] - 2026-08-04
 
 Initial release of the **Hide Comments and Disappear** VS Code extension.
