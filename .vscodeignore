@@ -1,0 +1,9 @@
+.git/**
+.github/**
+.vscode/**
+test/**
+examples/**
+scripts/**
+.gitignore
+.vscodeignore
+**/*.map

@@ -1,0 +1,101 @@
+{
+  "name": "hide-comments-and-disappear",
+  "displayName": "Hide Comments and Disappear",
+  "description": "Hide //, ///, /* */, /*! */ comments from your code completely, while keeping #region/#endregion comment markers visible and collapsible. Toggle on/off from the status bar, command palette, or keybinding.",
+  "version": "0.0.1",
+  "publisher": "enriquesouza",
+  "license": "MIT",
+  "author": {
+    "name": "Enrique Souza"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "icon": "icon.png",
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "comments",
+    "hide comments",
+    "remove comments",
+    "fold",
+    "region",
+    "clean view",
+    "javascript",
+    "typescript",
+    "rust",
+    "go"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/enriquesouza/hide-comments-and-disappear"
+  },
+  "bugs": {
+    "url": "https://github.com/enriquesouza/hide-comments-and-disappear/issues"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "hideCommentsAndDisappear.toggle",
+        "title": "Hide Comments and Disappear: Toggle Hide Comments",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "hideCommentsAndDisappear.enable",
+        "title": "Hide Comments and Disappear: Enable (Hide Comments)"
+      },
+      {
+        "command": "hideCommentsAndDisappear.disable",
+        "title": "Hide Comments and Disappear: Disable (Show Comments)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "hideCommentsAndDisappear.toggle",
+        "key": "ctrl+alt+h",
+        "mac": "cmd+alt+h",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Hide Comments and Disappear",
+      "properties": {
+        "hideCommentsAndDisappear.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true, comments are hidden in supported languages."
+        },
+        "hideCommentsAndDisappear.languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "javascript",
+            "javascriptreact",
+            "typescript",
+            "typescriptreact",
+            "rust",
+            "go"
+          ],
+          "description": "Language ids where comments are hidden and region folding is provided."
+        },
+        "hideCommentsAndDisappear.hideRegionComments": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, #region/#endregion comment markers are hidden too. By default they stay visible so you can collapse the region."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node test/scanner.test.js",
+    "icon": "node scripts/generate-icon.js"
+  }
+}
