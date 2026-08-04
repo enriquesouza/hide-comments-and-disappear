@@ -2,7 +2,7 @@
   "name": "hide-comments-and-disappear",
   "displayName": "Hide Comments and Disappear",
   "description": "Hide //, ///, /* */, /*! */ comments from your code completely, while keeping #region/#endregion comment markers visible and collapsible. Toggle on/off from the status bar, command palette, or keybinding.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "enriquesouza",
   "license": "MIT",
   "author": {
@@ -95,6 +95,16 @@
           "type": "boolean",
           "default": true,
           "description": "When true, runs of comment-only lines are automatically collapsed while comments are hidden, so no empty lines are left behind. They expand again when hiding is turned off."
+        },
+        "hideCommentsAndDisappear.autoCollapseRegions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "tests"
+          ],
+          "description": "Region labels that are automatically collapsed the first time a file is opened (case-insensitive substring match on the #region label, e.g. \"Tests\"). Set to [] to disable."
         }
       }
     }

@@ -13,6 +13,24 @@
 
 const { findCommentRanges } = require('./commentScanner');
 
+const REGION_MARKER = /#region\b/;
+
+/**
+ * Extract the label of a `#region` marker comment, stripping the box-drawing
+ * decoration around it: "slash-star ── #region Tests ── star-slash" becomes
+ * "Tests".
+ * @param {string} commentText
+ * @returns {string}
+ */
+function regionLabel(commentText) {
+  const match = REGION_MARKER.exec(commentText);
+  if (!match) return '';
+  return commentText
+    .slice(match.index + match[0].length)
+    .replace(/[\s─\-–—_*\/]+$/, '')
+    .trim();
+}
+
 /**
  * Binary search: index of the last line start that is <= offset.
  * @param {number[]} lineStarts
@@ -39,7 +57,8 @@ function lineIndexAt(lineStarts, offset) {
  *   comments: Array<{start:number,end:number,kind:'line'|'block',region:'start'|'end'|null}>,
  *   lineStates: Array<{hasComment:boolean,commentOnly:boolean,region:boolean,blank:boolean}>,
  *   runs: Array<{startLine:number,endLine:number,foldStart:number,triggerLine:number}>,
- *   blockFolds: Array<{startLine:number,endLine:number,triggerLine:number}>
+ *   blockFolds: Array<{startLine:number,endLine:number,triggerLine:number}>,
+ *   regionPairs: Array<{startLine:number,endLine:number,label:string}>
  * }}
  *   Each run is a maximal span of comment-only lines (blank lines between
  *   comment-only lines are absorbed). Folding the range
@@ -49,6 +68,8 @@ function lineIndexAt(lineStarts, offset) {
  *   pass to the editor fold/unfold commands.
  *   `blockFolds` are the multi-line block comments that do not overlap any
  *   run (runs already cover those), each foldable from its start line.
+ *   `regionPairs` are matched #region/#endregion marker pairs (`endLine` is
+ *   the line of the #endregion marker itself), with the extracted label.
  */
 function analyzeCommentLines(text, languageId) {
   const comments = findCommentRanges(text, languageId);
@@ -70,7 +91,7 @@ function analyzeCommentLines(text, languageId) {
     });
   }
 
-  if (comments.length === 0) return { comments, lineStates, runs: [], blockFolds: [] };
+  if (comments.length === 0) return { comments, lineStates, runs: [], blockFolds: [], regionPairs: [] };
 
   for (const comment of comments) {
     const startLine = lineIndexAt(lineStarts, comment.start);
@@ -165,7 +186,25 @@ function analyzeCommentLines(text, languageId) {
     }
   }
 
-  return { comments, lineStates, runs, blockFolds };
+  // Match #region markers with their nearest #endregion, innermost first.
+  const regionPairs = [];
+  const openRegions = [];
+  for (const comment of comments) {
+    if (comment.region === 'start') {
+      openRegions.push({
+        startLine: lineIndexAt(lineStarts, comment.start),
+        label: regionLabel(text.slice(comment.start, comment.end)),
+      });
+    } else if (comment.region === 'end' && openRegions.length > 0) {
+      const open = openRegions.pop();
+      const endLine = lineIndexAt(lineStarts, Math.max(comment.start, comment.end - 1));
+      if (endLine > open.startLine) {
+        regionPairs.push({ startLine: open.startLine, endLine, label: open.label });
+      }
+    }
+  }
+
+  return { comments, lineStates, runs, blockFolds, regionPairs };
 }
 
-module.exports = { analyzeCommentLines };
+module.exports = { analyzeCommentLines, regionLabel };

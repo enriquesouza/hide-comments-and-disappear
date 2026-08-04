@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [0.0.5] - 2026-08-04
+
+### Added
+
+- Matching `#region` pairs are now automatically collapsed the first time a file is opened — by default any region whose label contains "Tests" (case-insensitive), which is aimed at Rust files that keep `#[cfg(test)] mod tests` in the same file. Configure via `hideCommentsAndDisappear.autoCollapseRegions` (labels to match; `[]` disables). Manually expanding a collapsed region is respected until the file is closed.
+
+### Changed
+
+- Region pairing/label extraction moved into the shared line-analysis module and is covered by new tests.
+- `examples/sample.rs` now includes a `#region Tests` block with a `#[cfg(test)]` module.
+
 ## [0.0.4] - 2026-08-04
 
 ### Fixed

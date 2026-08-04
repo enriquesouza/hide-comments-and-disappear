@@ -21,6 +21,8 @@ let statusBarItem = null;
 let enabled = true;
 let hideRegionComments = false;
 let collapseCommentLines = true;
+/** @type {string[]} */
+let autoCollapseRegions = [];
 /** @type {Set<string>} */
 let languages = new Set();
 
@@ -31,6 +33,8 @@ const foldedLines = new Map();
 // document uri -> signature of the folds currently applied (skip re-applying
 // unchanged folds on every keystroke, which would also swap selections)
 const appliedFoldSignature = new Map();
+// documents whose matching regions were already collapsed on open
+const autoCollapsedUris = new Set();
 // bump to invalidate any in-flight fold refresh
 let foldGeneration = 0;
 
@@ -41,6 +45,7 @@ function loadConfig() {
   enabled = cfg.get('enabled', true);
   hideRegionComments = cfg.get('hideRegionComments', false);
   collapseCommentLines = cfg.get('collapseCommentLines', true);
+  autoCollapseRegions = (cfg.get('autoCollapseRegions', []) || []).filter((label) => label.trim() !== '');
   languages = new Set(cfg.get('languages', []));
 }
 
@@ -215,6 +220,42 @@ function refreshFolding(editor) {
   }
 }
 
+/**
+ * Collapse #region pairs whose label matches `autoCollapseRegions` the first
+ * time a document is opened (typically the "Tests" region in Rust files,
+ * where tests live in the same file). Runs once per open document; manually
+ * expanding it later is respected until the file is closed and reopened.
+ * @param {vscode.TextEditor | undefined} editor
+ */
+async function autoCollapseRegionsIn(editor) {
+  if (!editor || autoCollapseRegions.length === 0) return;
+  const document = editor.document;
+  if (!isSupported(document)) return;
+  const key = document.uri.toString();
+  if (autoCollapsedUris.has(key)) return;
+  autoCollapsedUris.add(key);
+
+  const info = analyzeCommentLines(document.getText(), document.languageId);
+  const wanted = autoCollapseRegions.map((label) => label.toLowerCase());
+  const targets = info.regionPairs.filter((pair) => {
+    const label = pair.label.toLowerCase();
+    return label !== '' && wanted.some((needle) => label.includes(needle));
+  });
+  if (targets.length === 0) return;
+  if (editor !== vscode.window.activeTextEditor) return;
+
+  const previousSelections = editor.selections;
+  editor.selections = targets.map(
+    (pair) => new vscode.Selection(new vscode.Position(pair.startLine, 0), new vscode.Position(pair.endLine, 0))
+  );
+  try {
+    await vscode.commands.executeCommand('editor.createFoldingRangeFromSelection');
+  } catch {
+    // editor.folding disabled — nothing to collapse
+  }
+  editor.selections = previousSelections;
+}
+
 function registerFoldingProviders() {
   for (const disposable of foldingDisposables) disposable.dispose();
   foldingDisposables = [...languages].map((languageId) =>
@@ -274,8 +315,21 @@ function activate(context) {
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       applyToEditor(editor);
       refreshFolding(editor);
+      autoCollapseRegionsIn(editor);
     }),
     vscode.window.onDidChangeVisibleTextEditors(() => applyToAllEditors()),
+
+    vscode.workspace.onDidOpenTextDocument((document) => {
+      const active = vscode.window.activeTextEditor;
+      if (active && active.document === document) autoCollapseRegionsIn(active);
+    }),
+
+    vscode.workspace.onDidCloseTextDocument((document) => {
+      const key = document.uri.toString();
+      autoCollapsedUris.delete(key);
+      foldedLines.delete(key);
+      appliedFoldSignature.delete(key);
+    }),
 
     vscode.workspace.onDidChangeTextDocument((event) => {
       if (isSupported(event.document)) scheduleUpdate(event.document);
@@ -293,6 +347,7 @@ function activate(context) {
 
   applyToAllEditors();
   refreshFolding(vscode.window.activeTextEditor);
+  autoCollapseRegionsIn(vscode.window.activeTextEditor);
 }
 
 function deactivate() {

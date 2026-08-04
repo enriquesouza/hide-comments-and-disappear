@@ -17,19 +17,12 @@ class CommentFoldingProvider {
   provideFoldingRanges(document) {
     const info = analyzeCommentLines(document.getText(), document.languageId);
     const ranges = [];
-    const regionStack = [];
 
-    for (const comment of info.comments) {
-      if (comment.region !== 'start' && comment.region !== 'end') continue;
-      const startLine = document.positionAt(comment.start).line;
-
-      if (comment.region === 'start') {
-        regionStack.push(startLine);
-      } else {
-        const openLine = regionStack.pop();
-        if (openLine !== undefined && startLine > openLine) {
-          ranges.push(new vscode.FoldingRange(openLine, startLine - 1, vscode.FoldingRangeKind.Region));
-        }
+    // #region/#endregion pairs fold the code between the markers, keeping
+    // the #endregion marker visible as the fold handle
+    for (const pair of info.regionPairs) {
+      if (pair.endLine - 1 > pair.startLine) {
+        ranges.push(new vscode.FoldingRange(pair.startLine, pair.endLine - 1, vscode.FoldingRangeKind.Region));
       }
     }
 

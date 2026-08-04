@@ -251,6 +251,61 @@ test('rust nested block comment counts as one block fold when lines carry code',
 });
 
 // ---------------------------------------------------------------------------
+// region pairs and labels
+// ---------------------------------------------------------------------------
+
+/** Shorthand: only the region pairs of an analysis. */
+function regionPairsOf(text, languageId) {
+  return analyzeCommentLines(text, languageId).regionPairs;
+}
+
+test('block-style region pair with box-drawing decoration extracts the label', () => {
+  const text = '/* ── #region Tests ── */\n#[cfg(test)]\nmod tests {}\n/* ── #endregion ── */';
+  assert.deepStrictEqual(regionPairsOf(text, 'rust'), [
+    { startLine: 0, endLine: 3, label: 'Tests' },
+  ]);
+});
+
+test('line-style region pair extracts the full label', () => {
+  const text = '// #region Rate limit constants\nconst A = 1;\n// #endregion';
+  assert.deepStrictEqual(regionPairsOf(text, 'javascript'), [
+    { startLine: 0, endLine: 2, label: 'Rate limit constants' },
+  ]);
+});
+
+test('region without a label yields an empty label', () => {
+  const text = '/* #region */\nx();\n/* #endregion */';
+  assert.deepStrictEqual(regionPairsOf(text, 'javascript'), [
+    { startLine: 0, endLine: 2, label: '' },
+  ]);
+});
+
+test('nested regions pair innermost first', () => {
+  const text = '// #region Outer\n// #region Inner\nx();\n// #endregion\ny();\n// #endregion';
+  assert.deepStrictEqual(regionPairsOf(text, 'javascript'), [
+    { startLine: 1, endLine: 3, label: 'Inner' },
+    { startLine: 0, endLine: 5, label: 'Outer' },
+  ]);
+});
+
+test('unmatched region markers produce no pairs', () => {
+  assert.deepStrictEqual(regionPairsOf('// #region Orphan\ncode();', 'javascript'), []);
+  assert.deepStrictEqual(regionPairsOf('code();\n// #endregion', 'javascript'), []);
+});
+
+test('region markers on the same line produce no pair', () => {
+  const text = '/* #region X */ code(); /* #endregion */';
+  assert.deepStrictEqual(regionPairsOf(text, 'javascript'), []);
+});
+
+test('go line-style region pairs are detected', () => {
+  const text = '// #region Demo helpers\nfunc f() {}\n// #endregion';
+  assert.deepStrictEqual(regionPairsOf(text, 'go'), [
+    { startLine: 0, endLine: 2, label: 'Demo helpers' },
+  ]);
+});
+
+// ---------------------------------------------------------------------------
 // runner
 // ---------------------------------------------------------------------------
 

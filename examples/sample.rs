@@ -118,3 +118,27 @@ fn main() {
     println!("{}", rejection_line(bucket.tokens, path));
     println!("probe body: {:?} ({})", HEALTH_BODY, PROBE);
 }
+
+/* ── #region Tests ── */
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn admits_until_empty() {
+        let mut bucket = TokenBucket::full(2);
+        let now = Instant::now();
+        assert!(bucket.admit(now).allowed);
+        assert!(bucket.admit(now).allowed);
+        let denied = bucket.admit(now);
+        assert!(!denied.allowed);
+        assert_eq!(denied.retry_after, TOKEN_INTERVAL);
+    }
+
+    #[test]
+    fn url_path_keeps_the_leading_slash() {
+        assert_eq!(url_path("https://api.example.com/v1/limits"), "/v1/limits");
+        assert_eq!(url_path("no-scheme.example.com"), "/");
+    }
+}
+/* ── #endregion ── */

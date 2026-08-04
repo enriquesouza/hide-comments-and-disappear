@@ -76,6 +76,10 @@ Collapsing uses VS Code's native folding machinery (the same commands behind "Fo
 
 Set `hideCommentsAndDisappear.collapseCommentLines` to `false` to keep this behaviour manual (the fold ranges are still provided).
 
+## Regions collapse on open
+
+`#region` pairs whose label matches `hideCommentsAndDisappear.autoCollapseRegions` (case-insensitive substring, default `["tests"]`) are collapsed automatically the first time you open a file — e.g. a `/* ── #region Tests ── */ … /* ── #endregion ── */` block around `#[cfg(test)] mod tests` in Rust, where tests live in the same file. If you expand one manually it stays expanded until the file is closed and reopened. Set the setting to `[]` to disable.
+
 ## Settings
 
 Configure via VS Code settings JSON:
@@ -86,6 +90,7 @@ Configure via VS Code settings JSON:
 | `hideCommentsAndDisappear.languages` | array of language ids | `["javascript", "javascriptreact", "typescript", "typescriptreact", "rust", "go"]` | Languages in which comments are hidden. Add more language ids such as `"c"`, `"cpp"`, or `"csharp"`. |
 | `hideCommentsAndDisappear.hideRegionComments` | boolean | `false` | When `true`, `#region` / `#endregion` marker comments are hidden too instead of kept as fold handles. |
 | `hideCommentsAndDisappear.collapseCommentLines` | boolean | `true` | When `true`, runs of comment-only lines are automatically collapsed while comments are hidden (no empty lines), and expanded again when hiding is off. |
+| `hideCommentsAndDisappear.autoCollapseRegions` | array of strings | `["tests"]` | Region labels collapsed automatically when a file is opened (case-insensitive substring match on the `#region` label). `[]` disables. |
 
 Example:
 
@@ -121,7 +126,7 @@ Any language can be added by appending its language id to `hideCommentsAndDisapp
 ### From a `.vsix`
 
 ```bash
-code --install-extension hide-comments-and-disappear-0.0.4.vsix
+code --install-extension hide-comments-and-disappear-0.0.5.vsix
 ```
 
 Or in VS Code / VSCodium: open the Extensions view, open the `...` menu, and choose **Install from VSIX...**.
