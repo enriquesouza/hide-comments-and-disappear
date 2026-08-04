@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [0.0.3] - 2026-08-04
+
+### Changed
+
+- Comment collapsing now uses VS Code's native "Fold All Block Comments" mechanism (`editor.foldAllBlockComments`): with the extension's typed folding provider active, every Comment-kind fold region (comment-only runs and multi-line block comments) collapses in one idempotent pass, with a retry pass for folding models that are still computing.
+- Multi-line block comments that overlap a comment-only run are no longer emitted as separate folds; the run fold covers them.
+
+### Fixed
+
+- Edge case where a block-comment fold nested inside a run fold could be collapsed first, leaving part of the comment run visible as empty lines.
+
 ## [0.0.2] - 2026-08-04
 
 ### Added

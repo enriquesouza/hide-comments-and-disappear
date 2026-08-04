@@ -38,7 +38,8 @@ function lineIndexAt(lineStarts, offset) {
  * @returns {{
  *   comments: Array<{start:number,end:number,kind:'line'|'block',region:'start'|'end'|null}>,
  *   lineStates: Array<{hasComment:boolean,commentOnly:boolean,region:boolean,blank:boolean}>,
- *   runs: Array<{startLine:number,endLine:number,foldStart:number,triggerLine:number}>
+ *   runs: Array<{startLine:number,endLine:number,foldStart:number,triggerLine:number}>,
+ *   blockFolds: Array<{startLine:number,endLine:number,triggerLine:number}>
  * }}
  *   Each run is a maximal span of comment-only lines (blank lines between
  *   comment-only lines are absorbed). Folding the range
@@ -46,6 +47,8 @@ function lineIndexAt(lineStarts, offset) {
  *   line just above the run, or line 0 for runs at the top of the file
  *   (where the first line cannot be hidden). `triggerLine` is the line to
  *   pass to the editor fold/unfold commands.
+ *   `blockFolds` are the multi-line block comments that do not overlap any
+ *   run (runs already cover those), each foldable from its start line.
  */
 function analyzeCommentLines(text, languageId) {
   const comments = findCommentRanges(text, languageId);
@@ -67,7 +70,7 @@ function analyzeCommentLines(text, languageId) {
     });
   }
 
-  if (comments.length === 0) return { comments, lineStates, runs: [] };
+  if (comments.length === 0) return { comments, lineStates, runs: [], blockFolds: [] };
 
   for (const comment of comments) {
     const startLine = lineIndexAt(lineStarts, comment.start);
@@ -147,7 +150,22 @@ function analyzeCommentLines(text, languageId) {
     i = end + 1;
   }
 
-  return { comments, lineStates, runs };
+  // Foldable multi-line block comments, except those overlapping a run:
+  // the run fold already covers them, and a nested fold inside a run fold
+  // would be collapsed first by the editor, leaving part of the run visible.
+  const blockFolds = [];
+  for (const comment of comments) {
+    if (comment.kind !== 'block' || comment.region) continue;
+    const startLine = lineIndexAt(lineStarts, comment.start);
+    const endLine = lineIndexAt(lineStarts, Math.max(comment.start, comment.end - 1));
+    if (endLine <= startLine) continue;
+    const overlapsRun = runs.some((run) => startLine <= run.endLine && endLine >= run.startLine);
+    if (!overlapsRun) {
+      blockFolds.push({ startLine, endLine, triggerLine: startLine });
+    }
+  }
+
+  return { comments, lineStates, runs, blockFolds };
 }
 
 module.exports = { analyzeCommentLines };

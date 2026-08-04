@@ -2,7 +2,7 @@
   "name": "hide-comments-and-disappear",
   "displayName": "Hide Comments and Disappear",
   "description": "Hide //, ///, /* */, /*! */ comments from your code completely, while keeping #region/#endregion comment markers visible and collapsible. Toggle on/off from the status bar, command palette, or keybinding.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "enriquesouza",
   "license": "MIT",
   "author": {

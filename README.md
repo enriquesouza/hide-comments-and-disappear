@@ -72,6 +72,8 @@ To hide region marker comments as well, set `hideCommentsAndDisappear.hideRegion
 
 Hiding comment text would normally leave blank lines where comments used to be. While hiding is on, the extension automatically folds every run of consecutive comment-only lines into the line above, so those lines disappear from view entirely (a fold indicator marks where they went). Turning hiding off expands them again. Inline comments (`code; // note`) keep their code line — only the comment text disappears.
 
+Collapsing uses VS Code's native "Fold All Block Comments" mechanism, so it works with the editor's own folding model; expanding on toggle-off targets only the folds the extension made, leaving your own folds untouched.
+
 Set `hideCommentsAndDisappear.collapseCommentLines` to `false` to keep this behaviour manual (the fold ranges are still provided).
 
 ## Settings
@@ -119,7 +121,7 @@ Any language can be added by appending its language id to `hideCommentsAndDisapp
 ### From a `.vsix`
 
 ```bash
-code --install-extension hide-comments-and-disappear-0.0.2.vsix
+code --install-extension hide-comments-and-disappear-0.0.3.vsix
 ```
 
 Or in VS Code / VSCodium: open the Extensions view, open the `...` menu, and choose **Install from VSIX...**.

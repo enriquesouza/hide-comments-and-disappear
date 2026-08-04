@@ -203,6 +203,54 @@ test('typescript: template literals do not create false comment-only lines', () 
 });
 
 // ---------------------------------------------------------------------------
+// block folds (multi-line block comments not covered by a run)
+// ---------------------------------------------------------------------------
+
+/** Shorthand: only the block folds of an analysis. */
+function blockFoldsOf(text, languageId) {
+  return analyzeCommentLines(text, languageId).blockFolds;
+}
+
+test('multi-line block comment whose lines all contain code is a block fold', () => {
+  // both lines have code outside the comment, so no comment-only run exists
+  const text = 'x = /* a\n b */ y;';
+  assert.deepStrictEqual(blockFoldsOf(text, 'javascript'), [
+    { startLine: 0, endLine: 1, triggerLine: 0 },
+  ]);
+});
+
+test('standalone multi-line block comment becomes a run, not a block fold', () => {
+  const text = 'a();\n/*\n block\n*/\nb();';
+  assert.deepStrictEqual(blockFoldsOf(text, 'javascript'), []);
+});
+
+test('block comment starting on a code line and running into a run is suppressed', () => {
+  const text = 'x; /* c1\n  c2\n  c3 */\ny;';
+  // lines 1-2 are comment-only, so the run covers them and the block fold
+  // (which would nest inside the run fold) must be suppressed
+  const info = analyzeCommentLines(text, 'javascript');
+  assert.deepStrictEqual(info.runs, [{ startLine: 1, endLine: 2, foldStart: 0, triggerLine: 0 }]);
+  assert.deepStrictEqual(info.blockFolds, []);
+});
+
+test('single-line block comment produces no block fold', () => {
+  const text = 'a(); /* inline */\nb();';
+  assert.deepStrictEqual(blockFoldsOf(text, 'javascript'), []);
+});
+
+test('region block comments produce no block fold', () => {
+  const text = '/* ── #region A ── */\nconst x = 1;\n/* ── #endregion ── */';
+  assert.deepStrictEqual(blockFoldsOf(text, 'javascript'), []);
+});
+
+test('rust nested block comment counts as one block fold when lines carry code', () => {
+  const text = 'let a = 1; /* outer /* inner */\n still outer */ + 2;\nlet b = 3;';
+  assert.deepStrictEqual(blockFoldsOf(text, 'rust'), [
+    { startLine: 0, endLine: 1, triggerLine: 0 },
+  ]);
+});
+
+// ---------------------------------------------------------------------------
 // runner
 // ---------------------------------------------------------------------------
 

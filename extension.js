@@ -10,6 +10,8 @@ const UPDATE_DEBOUNCE_MS = 150;
 // give the folding model time to pick up fresh provider results before we
 // programmatically fold comment-only lines
 const FOLD_SETTLE_MS = 250;
+// second fold pass, in case the folding model was still computing on the first
+const FOLD_RETRY_MS = 400;
 
 /** @type {vscode.TextEditorDecorationType | null} */
 let hideDecorationType = null;
@@ -116,40 +118,40 @@ function foldingShouldBeActive(document) {
 }
 
 /**
- * Fold every run of comment-only lines so hiding comments does not leave
- * empty lines behind. Fold commands act on the active editor only, and
- * already-collapsed regions are left untouched, so this is idempotent.
+ * Collapse all comment folds in the active editor using VS Code's native
+ * "Fold All Block Comments" command: with our folding provider registered it
+ * folds every Comment-kind region (comment-only runs and block comments),
+ * is idempotent, and never unfolds anything.
  * @param {vscode.TextEditor} editor
  * @param {number} generation
  */
-async function collapseCommentRuns(editor, generation) {
-  const document = editor.document;
-  const info = analyzeCommentLines(document.getText(), document.languageId);
-  const triggers = info.runs.map((run) => run.triggerLine);
-  const key = document.uri.toString();
-  if (triggers.length === 0) {
-    foldedLines.delete(key);
-    return;
-  }
-
+async function collapseEditorComments(editor, generation) {
   await sleep(FOLD_SETTLE_MS);
-  if (generation !== foldGeneration) return;
-  if (editor !== vscode.window.activeTextEditor) return;
-  if (!foldingShouldBeActive(document)) return;
-
-  try {
-    await vscode.commands.executeCommand('editor.fold', { selectionLines: triggers });
-    foldedLines.set(key, triggers);
-  } catch {
-    // editor.folding disabled or command unavailable — decorations still hide the text
+  for (const wait of [0, FOLD_RETRY_MS]) {
+    if (wait > 0) await sleep(wait);
+    if (generation !== foldGeneration) return;
+    if (editor !== vscode.window.activeTextEditor) return;
+    if (!foldingShouldBeActive(editor.document)) return;
+    try {
+      await vscode.commands.executeCommand('editor.foldAllBlockComments');
+    } catch {
+      return; // editor.folding disabled — decorations still hide the text
+    }
+  }
+  // remember what we folded so we can expand exactly those folds later
+  const info = analyzeCommentLines(editor.document.getText(), editor.document.languageId);
+  const triggers = [...info.runs.map((run) => run.triggerLine), ...info.blockFolds.map((fold) => fold.triggerLine)];
+  if (triggers.length > 0) {
+    foldedLines.set(editor.document.uri.toString(), triggers);
   }
 }
 
 /**
- * Expand exactly the comment runs we collapsed earlier.
+ * Expand exactly the comment folds we collapsed earlier (never the user's
+ * own folds — unlike a blunt "unfold all").
  * @param {vscode.TextEditor} editor
  */
-async function expandCommentRuns(editor) {
+async function expandEditorComments(editor) {
   const key = editor.document.uri.toString();
   const triggers = foldedLines.get(key);
   if (!triggers || triggers.length === 0) return;
@@ -171,9 +173,9 @@ function refreshFolding(editor) {
   const generation = foldGeneration;
   if (!editor) return;
   if (foldingShouldBeActive(editor.document)) {
-    collapseCommentRuns(editor, generation);
+    collapseEditorComments(editor, generation);
   } else {
-    expandCommentRuns(editor);
+    expandEditorComments(editor);
   }
 }
 

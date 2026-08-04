@@ -20,26 +20,25 @@ class CommentFoldingProvider {
     const regionStack = [];
 
     for (const comment of info.comments) {
+      if (comment.region !== 'start' && comment.region !== 'end') continue;
       const startLine = document.positionAt(comment.start).line;
-      const endLine = document.positionAt(Math.max(comment.start, comment.end - 1)).line;
 
       if (comment.region === 'start') {
         regionStack.push(startLine);
-      } else if (comment.region === 'end') {
+      } else {
         const openLine = regionStack.pop();
         if (openLine !== undefined && startLine > openLine) {
           ranges.push(new vscode.FoldingRange(openLine, startLine - 1, vscode.FoldingRangeKind.Region));
         }
-      } else if (comment.kind === 'block' && endLine > startLine) {
-        // skip block comments fully inside a comment-only run: the run fold
-        // already covers them and would otherwise win as the innermost fold
-        const coveredByRun = info.runs.some((run) => startLine >= run.startLine && endLine <= run.endLine);
-        if (!coveredByRun) {
-          ranges.push(new vscode.FoldingRange(startLine, endLine, vscode.FoldingRangeKind.Comment));
-        }
       }
     }
 
+    // multi-line block comments that are not covered by a comment-only run
+    for (const fold of info.blockFolds) {
+      ranges.push(new vscode.FoldingRange(fold.startLine, fold.endLine, vscode.FoldingRangeKind.Comment));
+    }
+
+    // runs of comment-only lines fold into the line above them
     for (const run of info.runs) {
       ranges.push(new vscode.FoldingRange(run.foldStart, run.endLine, vscode.FoldingRangeKind.Comment));
     }
