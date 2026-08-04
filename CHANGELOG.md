@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [0.0.4] - 2026-08-04
+
+### Fixed
+
+- Comment-only runs directly below a `{` line (the most common placement, e.g. at the top of a function body) were not collapsing: VS Code's folding model drops a provider range that starts on the same line as another provider's range (the brace fold). Runs are now collapsed as native *manual* folding ranges (`editor.createFoldingRangeFromSelection`), which take precedence in that merge, apply immediately, and are created already-collapsed.
+- Folds are re-applied only when the comment layout actually changes, so typing no longer triggers repeated fold/selection churn.
+
 ## [0.0.3] - 2026-08-04
 
 ### Changed

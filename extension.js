@@ -28,6 +28,9 @@ let foldingDisposables = [];
 const updateTimers = new Map();
 // document uri -> fold trigger lines we collapsed, so we expand exactly those
 const foldedLines = new Map();
+// document uri -> signature of the folds currently applied (skip re-applying
+// unchanged folds on every keystroke, which would also swap selections)
+const appliedFoldSignature = new Map();
 // bump to invalidate any in-flight fold refresh
 let foldGeneration = 0;
 
@@ -118,31 +121,63 @@ function foldingShouldBeActive(document) {
 }
 
 /**
- * Collapse all comment folds in the active editor using VS Code's native
- * "Fold All Block Comments" command: with our folding provider registered it
- * folds every Comment-kind region (comment-only runs and block comments),
- * is idempotent, and never unfolds anything.
+ * Collapse comment folds in the active editor.
+ *
+ * Runs of comment-only lines become MANUAL folding ranges (created from
+ * selections via the native command): they apply immediately, are created
+ * already-collapsed, and win the folding model's same-start-line merge
+ * against provider ranges (e.g. the brace fold of the line above the run),
+ * which would otherwise silently discard a provider range anchored there.
+ *
+ * Multi-line block comments that share lines with code are then collapsed
+ * through the native "Fold All Block Comments" command, which folds every
+ * Comment-kind region of our folding provider (idempotent, never unfolds).
  * @param {vscode.TextEditor} editor
  * @param {number} generation
  */
 async function collapseEditorComments(editor, generation) {
+  const document = editor.document;
+  const info = analyzeCommentLines(document.getText(), document.languageId);
+  const signature =
+    JSON.stringify(info.runs.map((run) => [run.foldStart, run.endLine])) +
+    '|' +
+    JSON.stringify(info.blockFolds.map((fold) => [fold.startLine, fold.endLine]));
+
+  // remember what we folded so we can expand exactly those folds later
+  const triggers = [...info.runs.map((run) => run.triggerLine), ...info.blockFolds.map((fold) => fold.triggerLine)];
+  foldedLines.set(document.uri.toString(), triggers);
+
+  if (appliedFoldSignature.get(document.uri.toString()) === signature) return;
+
+  if (info.runs.length > 0) {
+    const previousSelections = editor.selections;
+    editor.selections = info.runs.map(
+      (run) =>
+        new vscode.Selection(new vscode.Position(run.foldStart, 0), new vscode.Position(run.endLine + 1, 0))
+    );
+    try {
+      await vscode.commands.executeCommand('editor.createFoldingRangeFromSelection');
+    } catch {
+      // editor.folding disabled — decorations still hide the text
+    }
+    editor.selections = previousSelections;
+  }
+
+  appliedFoldSignature.set(document.uri.toString(), signature);
+
+  if (info.blockFolds.length === 0) return;
+
   await sleep(FOLD_SETTLE_MS);
   for (const wait of [0, FOLD_RETRY_MS]) {
     if (wait > 0) await sleep(wait);
     if (generation !== foldGeneration) return;
     if (editor !== vscode.window.activeTextEditor) return;
-    if (!foldingShouldBeActive(editor.document)) return;
+    if (!foldingShouldBeActive(document)) return;
     try {
       await vscode.commands.executeCommand('editor.foldAllBlockComments');
     } catch {
-      return; // editor.folding disabled — decorations still hide the text
+      return;
     }
-  }
-  // remember what we folded so we can expand exactly those folds later
-  const info = analyzeCommentLines(editor.document.getText(), editor.document.languageId);
-  const triggers = [...info.runs.map((run) => run.triggerLine), ...info.blockFolds.map((fold) => fold.triggerLine)];
-  if (triggers.length > 0) {
-    foldedLines.set(editor.document.uri.toString(), triggers);
   }
 }
 
@@ -153,6 +188,7 @@ async function collapseEditorComments(editor, generation) {
  */
 async function expandEditorComments(editor) {
   const key = editor.document.uri.toString();
+  appliedFoldSignature.delete(key);
   const triggers = foldedLines.get(key);
   if (!triggers || triggers.length === 0) return;
   foldedLines.delete(key);
